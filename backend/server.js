@@ -30,19 +30,61 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // =============================================
-// Middleware
+// CORS Configuration - MUST BE FIRST
 // =============================================
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(",")
+  : ["http://localhost:5173", "http://localhost:3000"];
+
+// Add production frontend URL if available
+if (
+  process.env.FRONTEND_URL &&
+  !allowedOrigins.includes(process.env.FRONTEND_URL)
+) {
+  allowedOrigins.push(process.env.FRONTEND_URL);
+}
+
+// Add common Render.com patterns
+allowedOrigins.push("https://lead-system-sb8k.onrender.com");
+
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || "http://localhost:5173",
+    origin: function (origin, callback) {
+      // Allow requests with no origin (like mobile apps, curl, Postman)
+      if (!origin) return callback(null, true);
+
+      // Check if origin is in allowed list
+      if (
+        allowedOrigins.some((allowed) =>
+          origin.startsWith(allowed.replace(/\/$/, ""))
+        )
+      ) {
+        callback(null, true);
+      } else {
+        logWarning("CORS blocked origin", { origin, allowedOrigins });
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+    exposedHeaders: ["Content-Range", "X-Content-Range"],
+    maxAge: 600, // Cache preflight for 10 minutes
   })
 );
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Handle preflight requests explicitly
+app.options("*", cors());
 
-// Logging middleware
+// =============================================
+// Body Parsing Middleware
+// =============================================
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+
+// =============================================
+// Logging Middleware
+// =============================================
 app.use(requestLogger);
 app.use(logRequestBody);
 app.use(performanceLogger);
@@ -52,6 +94,7 @@ app.use((req, res, next) => {
   const timestamp = new Date().toISOString();
   logInfo(`${req.method} ${req.path}`, {
     ip: req.ip,
+    origin: req.get("origin"),
     userAgent: req.get("user-agent"),
   });
   next();
@@ -66,6 +109,15 @@ app.get("/", (req, res) => {
   res.json({
     status: "ok",
     message: "Lead System API is running",
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || "development",
+  });
+});
+
+app.get("/api/health", (req, res) => {
+  res.json({
+    status: "ok",
+    message: "API is healthy",
     timestamp: new Date().toISOString(),
   });
 });
@@ -91,6 +143,7 @@ app.post(
     logInfo("Lead submission received", {
       email: req.body.email,
       amount: req.body.amount,
+      origin: req.get("origin"),
     });
 
     const leadData = req.body;
@@ -136,7 +189,7 @@ app.post(
       return res.json({
         status: "rejected",
         lead_id: result.lead_id,
-        message: result.message,
+        message: result.message || "No lenders available at this time.",
         total_attempts: result.total_attempts,
       });
     } else {
@@ -401,6 +454,7 @@ async function startServer() {
         }`
       );
       console.log(`📝 Log Level: ${process.env.LOG_LEVEL || "info"}`);
+      console.log(`🔐 CORS Allowed Origins:`, allowedOrigins);
       console.log(`📅 Started at: ${new Date().toISOString()}`);
       console.log("=".repeat(50));
       console.log("\n💡 Available endpoints:");
@@ -419,6 +473,7 @@ async function startServer() {
       logInfo("Server started successfully", {
         port: PORT,
         environment: process.env.NODE_ENV || "development",
+        allowedOrigins,
       });
     });
   } catch (error) {
