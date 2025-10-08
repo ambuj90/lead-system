@@ -222,7 +222,12 @@ function LeadForm() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!validateStep(currentStep)) {
+    // Validate
+    if (!validateForm()) {
+      const firstError = document.querySelector(".border-red-500");
+      if (firstError) {
+        firstError.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
       return;
     }
 
@@ -230,11 +235,23 @@ function LeadForm() {
     setSubmitStatus(null);
 
     try {
+      // Get user's IP address
       const ipAddress = await getUserIP();
       const userAgent = navigator.userAgent;
 
+      // Determine API URL based on environment
+      const API_URL =
+        window.location.hostname === "localhost"
+          ? "http://localhost:5000"
+          : "https://lead-system-sb8k.onrender.com"; // YOUR ACTUAL BACKEND URL
+
+      console.log("🌐 Submitting to:", API_URL);
+      console.log("📍 Frontend origin:", window.location.origin);
+
+      // Prepare data for submission
       const submitData = {
         ...formData,
+        // Remove formatting for backend
         phone: formData.phone.replace(/\D/g, ""),
         ssn: formData.ssn.replace(/\D/g, ""),
         zip: formData.zip.replace(/\D/g, ""),
@@ -248,8 +265,10 @@ function LeadForm() {
         user_agent: userAgent,
       };
 
-      const apiUrl = import.meta.env.VITE_API_URL || "";
-      const response = await fetch(`${apiUrl}/api/lead`, {
+      console.log("📤 Submitting lead data...");
+
+      // Submit to backend
+      const response = await fetch(`${API_URL}/api/lead`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -257,12 +276,23 @@ function LeadForm() {
         body: JSON.stringify(submitData),
       });
 
+      console.log("📥 Response status:", response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({
+          message: `Server error: ${response.status}`,
+        }));
+        throw new Error(errorData.message || "Server error occurred");
+      }
+
       const result = await response.json();
+      console.log("✅ Result:", result);
 
       if (result.status === "sold") {
         setSubmitStatus("success");
         setRedirectUrl(result.redirect_url);
 
+        // Redirect after 3 seconds
         if (result.redirect_url) {
           setTimeout(() => {
             window.location.href = result.redirect_url;
@@ -274,7 +304,12 @@ function LeadForm() {
         setSubmitStatus("error");
       }
     } catch (error) {
-      console.error("Submission error:", error);
+      console.error("❌ Submission error:", error);
+      console.error("Error details:", {
+        message: error.message,
+        name: error.name,
+        stack: error.stack,
+      });
       setSubmitStatus("error");
     } finally {
       setLoading(false);
