@@ -22,8 +22,9 @@ import { Confetti, Fireworks, SuccessCard } from "./SuccessAnimations";
 
 function LeadForm() {
   // =============================================
-  // Form State
+  // State Management
   // =============================================
+  const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState({
     // Personal Information
     fName: "",
@@ -55,7 +56,7 @@ function LeadForm() {
     loan_reason: "",
     credit_type: "",
 
-    // Tracking (auto-populated)
+    // Tracking
     note: "",
     atrk: "",
   });
@@ -66,7 +67,7 @@ function LeadForm() {
   const [redirectUrl, setRedirectUrl] = useState(null);
 
   // =============================================
-  // Initialize tracking on component mount
+  // Initialize tracking
   // =============================================
   useEffect(() => {
     const trackingId = generateTrackingId();
@@ -78,47 +79,21 @@ function LeadForm() {
   }, []);
 
   // =============================================
-  // Calculate form completion percentage
+  // Calculate Progress
   // =============================================
   const calculateProgress = () => {
-    const requiredFields = [
-      "fName",
-      "lName",
-      "email",
-      "phone",
-      "bMonth",
-      "bDay",
-      "bYear",
-      "address1",
-      "city",
-      "state",
-      "zip",
-      "lengthAtAddress",
-      "rentOwn",
-      "amount",
-      "ssn",
-      "incomeSource",
-      "monthlyNetIncome",
-      "callTime",
-    ];
-
-    const filledRequired = requiredFields.filter(
-      (field) => formData[field] && formData[field].toString().trim() !== ""
-    ).length;
-
-    return Math.round((filledRequired / requiredFields.length) * 100);
+    const totalSteps = 4;
+    return Math.round((currentStep / totalSteps) * 100);
   };
 
-  const progress = calculateProgress();
-
   // =============================================
-  // Handle Input Changes with Formatting
+  // Handle Input Changes
   // =============================================
   const handleChange = (e) => {
     const { name, value } = e.target;
     let formattedValue = value;
 
-    // Apply formatting based on field
+    // Apply formatting
     switch (name) {
       case "phone":
         formattedValue = formatPhoneNumber(value);
@@ -136,7 +111,6 @@ function LeadForm() {
       case "fName":
       case "lName":
       case "city":
-        // Capitalize first letter
         formattedValue = value.charAt(0).toUpperCase() + value.slice(1);
         break;
       default:
@@ -148,106 +122,154 @@ function LeadForm() {
       [name]: formattedValue,
     }));
 
-    // Clear error when user starts typing
+    // Clear error when user types
     if (errors[name]) {
-      setErrors((prev) => ({
-        ...prev,
-        [name]: null,
-      }));
+      setErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors[name];
+        return newErrors;
+      });
     }
   };
 
   // =============================================
-  // Validate Form - THIS WAS MISSING!
+  // Validate Current Step
   // =============================================
-  const validateForm = () => {
+  const validateStep = (step) => {
     const newErrors = {};
 
-    // Personal Information
-    if (!formData.fName.trim()) newErrors.fName = "First name is required";
-    if (!formData.lName.trim()) newErrors.lName = "Last name is required";
-    if (!formData.email.trim()) {
-      newErrors.email = "Email is required";
-    } else if (!isValidEmail(formData.email)) {
-      newErrors.email = "Invalid email format";
-    }
-    if (!formData.phone.trim()) {
-      newErrors.phone = "Phone number is required";
-    } else if (!isValidPhone(formData.phone)) {
-      newErrors.phone = "Phone must be 10 digits";
-    }
+    if (step === 1) {
+      // Personal Information
+      if (!formData.fName || !formData.fName.trim()) {
+        newErrors.fName = "First name is required";
+      }
+      if (!formData.lName || !formData.lName.trim()) {
+        newErrors.lName = "Last name is required";
+      }
+      if (!formData.email || !formData.email.trim()) {
+        newErrors.email = "Email is required";
+      } else if (!isValidEmail(formData.email)) {
+        newErrors.email = "Invalid email format";
+      }
+      if (!formData.phone || !formData.phone.trim()) {
+        newErrors.phone = "Phone number is required";
+      } else if (!isValidPhone(formData.phone)) {
+        newErrors.phone = "Phone must be 10 digits";
+      }
 
-    // Date of Birth
-    if (!formData.bMonth) newErrors.bMonth = "Month required";
-    if (!formData.bDay) newErrors.bDay = "Day required";
-    if (!formData.bYear) newErrors.bYear = "Year required";
-    if (formData.bMonth && formData.bDay && formData.bYear) {
-      if (!isValidAge(formData.bMonth, formData.bDay, formData.bYear)) {
-        newErrors.bYear = "Must be 18 years or older";
+      // Date of Birth
+      if (!formData.bMonth) newErrors.bMonth = "Month required";
+      if (!formData.bDay) newErrors.bDay = "Day required";
+      if (!formData.bYear) newErrors.bYear = "Year required";
+
+      if (formData.bMonth && formData.bDay && formData.bYear) {
+        if (!isValidAge(formData.bMonth, formData.bDay, formData.bYear)) {
+          newErrors.bYear = "Must be 18 years or older";
+        }
       }
     }
 
-    // Address
-    if (!formData.address1.trim()) newErrors.address1 = "Address is required";
-    if (!formData.city.trim()) newErrors.city = "City is required";
-    if (!formData.state) newErrors.state = "State is required";
-    if (!formData.zip) {
-      newErrors.zip = "ZIP code is required";
-    } else if (!isValidZip(formData.zip)) {
-      newErrors.zip = "ZIP must be 5 digits";
-    }
-    if (!formData.lengthAtAddress) newErrors.lengthAtAddress = "Required";
-    if (!formData.rentOwn) newErrors.rentOwn = "Required";
-
-    // Financial
-    if (!formData.amount) {
-      newErrors.amount = "Loan amount is required";
-    } else {
-      const amt = parseInt(formData.amount.replace(/,/g, ""));
-      if (amt < 100 || amt > 5000) {
-        newErrors.amount = "Amount must be between $100 - $5,000";
+    if (step === 2) {
+      // Address Information
+      if (!formData.address1 || !formData.address1.trim()) {
+        newErrors.address1 = "Address is required";
       }
-    }
-    if (!formData.ssn) {
-      newErrors.ssn = "SSN is required";
-    } else if (!isValidSSN(formData.ssn)) {
-      newErrors.ssn = "SSN must be 9 digits";
-    }
-    if (!formData.incomeSource)
-      newErrors.incomeSource = "Income source required";
-    if (!formData.monthlyNetIncome) {
-      newErrors.monthlyNetIncome = "Monthly income required";
-    } else {
-      const income = parseInt(formData.monthlyNetIncome.replace(/,/g, ""));
-      if (income < 800) {
-        newErrors.monthlyNetIncome = "Minimum income is $800/month";
+      if (!formData.city || !formData.city.trim()) {
+        newErrors.city = "City is required";
+      }
+      if (!formData.state) {
+        newErrors.state = "State is required";
+      }
+      if (!formData.zip) {
+        newErrors.zip = "ZIP code is required";
+      } else if (!isValidZip(formData.zip)) {
+        newErrors.zip = "ZIP must be 5 digits";
+      }
+      if (!formData.lengthAtAddress) {
+        newErrors.lengthAtAddress = "Required";
+      }
+      if (!formData.rentOwn) {
+        newErrors.rentOwn = "Required";
       }
     }
 
-    // Additional
-    if (!formData.callTime)
-      newErrors.callTime = "Call time preference required";
+    if (step === 3) {
+      // Financial Information
+      if (!formData.amount) {
+        newErrors.amount = "Loan amount is required";
+      } else {
+        const amt = parseInt(formData.amount.replace(/,/g, ""));
+        if (isNaN(amt) || amt < 100 || amt > 5000) {
+          newErrors.amount = "Amount must be between $100 - $5,000";
+        }
+      }
 
+      if (!formData.ssn) {
+        newErrors.ssn = "SSN is required";
+      } else if (!isValidSSN(formData.ssn)) {
+        newErrors.ssn = "SSN must be 9 digits";
+      }
+
+      if (!formData.incomeSource) {
+        newErrors.incomeSource = "Income source required";
+      }
+
+      if (!formData.monthlyNetIncome) {
+        newErrors.monthlyNetIncome = "Monthly income required";
+      } else {
+        const income = parseInt(formData.monthlyNetIncome.replace(/,/g, ""));
+        if (isNaN(income) || income < 800) {
+          newErrors.monthlyNetIncome = "Minimum income is $800/month";
+        }
+      }
+    }
+
+    if (step === 4) {
+      // Additional Information
+      if (!formData.callTime) {
+        newErrors.callTime = "Call time preference required";
+      }
+    }
+
+    console.log("Validation for step", step, "errors:", newErrors);
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   // =============================================
-  // Handle Form Submission
+  // Navigation Handlers
+  // =============================================
+  const handleNext = () => {
+    if (validateStep(currentStep)) {
+      setCurrentStep(currentStep + 1);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } else {
+      // Scroll to first error
+      setTimeout(() => {
+        const firstError = document.querySelector(".border-red-500");
+        if (firstError) {
+          firstError.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }, 100);
+    }
+  };
+
+  const handleBack = () => {
+    setCurrentStep(currentStep - 1);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  // =============================================
+  // Form Submission
   // =============================================
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     console.log("🚀 Form submission started");
 
-    // Validate
-    if (!validateForm()) {
+    // Validate final step
+    if (!validateStep(4)) {
       console.log("❌ Validation failed", errors);
-      // Scroll to first error
-      const firstError = document.querySelector(".border-red-500");
-      if (firstError) {
-        firstError.scrollIntoView({ behavior: "smooth", block: "center" });
-      }
       return;
     }
 
@@ -257,24 +279,23 @@ function LeadForm() {
     setSubmitStatus(null);
 
     try {
-      // Get user's IP address
+      // Get user's IP and user agent
       const ipAddress = await getUserIP();
       const userAgent = navigator.userAgent;
 
-      // Determine API URL based on environment
+      // Determine API URL
       const API_URL =
         window.location.hostname === "localhost" ||
         window.location.hostname === "127.0.0.1"
           ? "http://localhost:5000"
-          : "https://lead-system-sb8k.onrender.com"; // YOUR ACTUAL BACKEND
+          : "https://lead-system-sb8k.onrender.com";
 
       console.log("🌐 API URL:", API_URL);
       console.log("📍 Frontend origin:", window.location.origin);
 
-      // Prepare data for submission
+      // Prepare data
       const submitData = {
         ...formData,
-        // Remove formatting for backend
         phone: formData.phone.replace(/\D/g, ""),
         ssn: formData.ssn.replace(/\D/g, ""),
         zip: formData.zip.replace(/\D/g, ""),
@@ -300,27 +321,17 @@ function LeadForm() {
       });
 
       console.log("📥 Response status:", response.status);
-      console.log(
-        "📥 Response headers:",
-        Object.fromEntries(response.headers.entries())
-      );
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("❌ Server error response:", errorText);
-
+        console.error("❌ Server error:", errorText);
         let errorData;
         try {
           errorData = JSON.parse(errorText);
         } catch {
-          errorData = {
-            message: `Server error: ${response.status} - ${errorText}`,
-          };
+          errorData = { message: `Server error: ${response.status}` };
         }
-
-        throw new Error(
-          errorData.message || `Server error: ${response.status}`
-        );
+        throw new Error(errorData.message || "Server error occurred");
       }
 
       const result = await response.json();
@@ -330,7 +341,6 @@ function LeadForm() {
         setSubmitStatus("success");
         setRedirectUrl(result.redirect_url);
 
-        // Redirect after 3 seconds
         if (result.redirect_url) {
           setTimeout(() => {
             window.location.href = result.redirect_url;
@@ -343,18 +353,15 @@ function LeadForm() {
       }
     } catch (error) {
       console.error("❌ Submission error:", error);
-      console.error("Error details:", {
-        message: error.message,
-        name: error.name,
-        stack: error.stack,
-      });
       setSubmitStatus("error");
     } finally {
       setLoading(false);
     }
   };
 
-  // Show processing overlay while loading
+  // =============================================
+  // Render Status Messages
+  // =============================================
   if (loading) {
     return (
       <ProcessingOverlay
@@ -368,19 +375,11 @@ function LeadForm() {
     );
   }
 
-  // =============================================
-  // Render Status Messages
-  // =============================================
   if (submitStatus === "success") {
     return (
       <>
-        {/* Confetti Celebration */}
         <Confetti active={true} duration={6000} />
-
-        {/* Fireworks */}
         <Fireworks active={true} duration={4000} />
-
-        {/* Success Card */}
         <div className="min-h-screen flex items-center justify-center p-4">
           <SuccessCard
             title="Congratulations! 🎉"
@@ -415,8 +414,7 @@ function LeadForm() {
           No Match Found
         </h2>
         <p className="text-gray-600 mb-6">
-          Unfortunately, we couldn't match you with a lender at this time. This
-          could be due to various factors in your application.
+          Unfortunately, we couldn't match you with a lender at this time.
         </p>
         <button
           onClick={() => window.location.reload()}
@@ -463,168 +461,163 @@ function LeadForm() {
   }
 
   // =============================================
-  // Render Form
+  // Render Step Form
   // =============================================
   return (
     <div className="max-w-4xl mx-auto bg-white rounded-lg shadow-lg p-8">
-      {/* Form Header */}
-      <div className="mb-8 text-center">
-        <h2 className="text-3xl font-bold text-gray-900 mb-2">
-          Apply for Installment Loan
-        </h2>
-        <p className="text-gray-600 mb-4">
-          Complete the form below to get matched with lenders. All information
-          is secure and confidential.
-        </p>
+      {/* Progress Bar */}
+      <div className="mb-8">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-2xl font-bold text-gray-900">
+            Apply for Installment Loan
+          </h2>
+          <span className="text-sm font-medium text-gray-600">
+            Step {currentStep} of 4
+          </span>
+        </div>
 
-        {/* Progress Bar */}
-        <div className="max-w-md mx-auto">
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-sm font-medium text-gray-700">
-              Application Progress
-            </span>
-            <span className="text-sm font-bold text-blue-600">{progress}%</span>
-          </div>
-          <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
-            <div
-              className="bg-gradient-to-r from-blue-500 to-blue-600 h-3 rounded-full transition-all duration-500 ease-out"
-              style={{ width: `${progress}%` }}
-            ></div>
-          </div>
+        <div className="w-full bg-gray-200 rounded-full h-3">
+          <div
+            className="bg-gradient-to-r from-blue-500 to-blue-600 h-3 rounded-full transition-all duration-500"
+            style={{ width: `${calculateProgress()}%` }}
+          ></div>
+        </div>
+
+        {/* Step Labels */}
+        <div className="flex justify-between mt-4 text-xs">
+          <span
+            className={
+              currentStep >= 1 ? "text-blue-600 font-medium" : "text-gray-400"
+            }
+          >
+            Personal
+          </span>
+          <span
+            className={
+              currentStep >= 2 ? "text-blue-600 font-medium" : "text-gray-400"
+            }
+          >
+            Address
+          </span>
+          <span
+            className={
+              currentStep >= 3 ? "text-blue-600 font-medium" : "text-gray-400"
+            }
+          >
+            Financial
+          </span>
+          <span
+            className={
+              currentStep >= 4 ? "text-blue-600 font-medium" : "text-gray-400"
+            }
+          >
+            Additional
+          </span>
         </div>
       </div>
 
-      {/* Form */}
-      <form onSubmit={handleSubmit} className="space-y-8">
-        {/* ===== SECTION 1: PERSONAL INFORMATION ===== */}
-        <div className="border-b border-gray-200 pb-8">
-          <h3 className="text-xl font-semibold text-gray-800 mb-6 flex items-center">
-            <svg
-              className="w-6 h-6 mr-2 text-blue-600"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-              />
-            </svg>
-            Personal Information
-          </h3>
+      <form onSubmit={handleSubmit}>
+        {/* STEP 1: PERSONAL INFORMATION */}
+        {currentStep === 1 && (
+          <div className="space-y-6 animate-fadeIn">
+            <h3 className="text-xl font-semibold text-gray-800 mb-6">
+              Personal Information
+            </h3>
 
-          {/* Name Fields */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <TextInput
-              label="First Name"
-              name="fName"
-              value={formData.fName}
-              onChange={handleChange}
-              error={errors.fName}
-              placeholder="John"
-              required
-              maxLength={50}
-            />
-            <TextInput
-              label="Last Name"
-              name="lName"
-              value={formData.lName}
-              onChange={handleChange}
-              error={errors.lName}
-              placeholder="Doe"
-              required
-              maxLength={50}
-            />
-          </div>
-
-          {/* Email & Phone */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <TextInput
-              label="Email Address"
-              name="email"
-              type="email"
-              value={formData.email}
-              onChange={handleChange}
-              error={errors.email}
-              placeholder="john.doe@example.com"
-              required
-            />
-            <TextInput
-              label="Phone Number"
-              name="phone"
-              type="tel"
-              value={formData.phone}
-              onChange={handleChange}
-              error={errors.phone}
-              placeholder="(555) 123-4567"
-              required
-              maxLength={14}
-            />
-          </div>
-
-          {/* Date of Birth */}
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Date of Birth <span className="text-red-500">*</span>
-            </label>
-            <p className="text-xs text-gray-500 mb-3">
-              You must be 18 years or older to apply
-            </p>
-            <div className="grid grid-cols-3 gap-4">
-              <SelectInput
-                label=""
-                name="bMonth"
-                value={formData.bMonth}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <TextInput
+                label="First Name"
+                name="fName"
+                value={formData.fName}
                 onChange={handleChange}
-                error={errors.bMonth}
-                options={MONTHS}
+                error={errors.fName}
+                placeholder="John"
                 required
+                maxLength={50}
               />
-              <SelectInput
-                label=""
-                name="bDay"
-                value={formData.bDay}
+              <TextInput
+                label="Last Name"
+                name="lName"
+                value={formData.lName}
                 onChange={handleChange}
-                error={errors.bDay}
-                options={generateDays()}
+                error={errors.lName}
+                placeholder="Doe"
                 required
-              />
-              <SelectInput
-                label=""
-                name="bYear"
-                value={formData.bYear}
-                onChange={handleChange}
-                error={errors.bYear}
-                options={generateYears()}
-                required
+                maxLength={50}
               />
             </div>
-          </div>
-        </div>
 
-        {/* ===== SECTION 2: ADDRESS INFORMATION ===== */}
-        <div className="border-b border-gray-200 pb-8">
-          <h3 className="text-xl font-semibold text-gray-800 mb-6 flex items-center">
-            <svg
-              className="w-6 h-6 mr-2 text-blue-600"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <TextInput
+                label="Email Address"
+                name="email"
+                type="email"
+                value={formData.email}
+                onChange={handleChange}
+                error={errors.email}
+                placeholder="john.doe@example.com"
+                required
               />
-            </svg>
-            Address Information
-          </h3>
+              <TextInput
+                label="Phone Number"
+                name="phone"
+                type="tel"
+                value={formData.phone}
+                onChange={handleChange}
+                error={errors.phone}
+                placeholder="(555) 123-4567"
+                required
+                maxLength={14}
+              />
+            </div>
 
-          {/* Street Address */}
-          <div className="mb-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Date of Birth <span className="text-red-500">*</span>
+              </label>
+              <p className="text-xs text-gray-500 mb-3">
+                You must be 18 years or older to apply
+              </p>
+              <div className="grid grid-cols-3 gap-4">
+                <SelectInput
+                  label=""
+                  name="bMonth"
+                  value={formData.bMonth}
+                  onChange={handleChange}
+                  error={errors.bMonth}
+                  options={MONTHS}
+                  required
+                />
+                <SelectInput
+                  label=""
+                  name="bDay"
+                  value={formData.bDay}
+                  onChange={handleChange}
+                  error={errors.bDay}
+                  options={generateDays()}
+                  required
+                />
+                <SelectInput
+                  label=""
+                  name="bYear"
+                  value={formData.bYear}
+                  onChange={handleChange}
+                  error={errors.bYear}
+                  options={generateYears()}
+                  required
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 2: ADDRESS INFORMATION */}
+        {currentStep === 2 && (
+          <div className="space-y-6 animate-fadeIn">
+            <h3 className="text-xl font-semibold text-gray-800 mb-6">
+              Address Information
+            </h3>
+
             <TextInput
               label="Street Address"
               name="address1"
@@ -635,103 +628,87 @@ function LeadForm() {
               required
               maxLength={100}
             />
-          </div>
 
-          {/* City, State, ZIP */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-            <TextInput
-              label="City"
-              name="city"
-              value={formData.city}
-              onChange={handleChange}
-              error={errors.city}
-              placeholder="New York"
-              required
-              maxLength={80}
-            />
-            <SelectInput
-              label="State"
-              name="state"
-              value={formData.state}
-              onChange={handleChange}
-              error={errors.state}
-              options={US_STATES}
-              required
-            />
-            <TextInput
-              label="ZIP Code"
-              name="zip"
-              type="tel"
-              value={formData.zip}
-              onChange={handleChange}
-              error={errors.zip}
-              placeholder="12345"
-              required
-              maxLength={5}
-            />
-          </div>
-
-          {/* Length at Address & Rent/Own */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <SelectInput
-              label="Years at Current Address"
-              name="lengthAtAddress"
-              value={formData.lengthAtAddress}
-              onChange={handleChange}
-              error={errors.lengthAtAddress}
-              options={[
-                { value: "", label: "Select years" },
-                { value: "0", label: "Less than 1 year" },
-                { value: "1", label: "1 year" },
-                { value: "2", label: "2 years" },
-                { value: "3", label: "3 years" },
-                { value: "4", label: "4 years" },
-                { value: "5", label: "5 years" },
-                { value: "6", label: "6 years" },
-                { value: "7", label: "7 years" },
-                { value: "8", label: "8 years" },
-                { value: "9", label: "9 years" },
-                { value: "10", label: "10+ years" },
-              ]}
-              required
-            />
-            <RadioGroup
-              label="Do you Rent or Own?"
-              name="rentOwn"
-              value={formData.rentOwn}
-              onChange={handleChange}
-              error={errors.rentOwn}
-              options={[
-                { value: "rent", label: "Rent" },
-                { value: "own", label: "Own" },
-              ]}
-              required
-            />
-          </div>
-        </div>
-
-        {/* ===== SECTION 3: FINANCIAL INFORMATION ===== */}
-        <div className="border-b border-gray-200 pb-8">
-          <h3 className="text-xl font-semibold text-gray-800 mb-6 flex items-center">
-            <svg
-              className="w-6 h-6 mr-2 text-blue-600"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <TextInput
+                label="City"
+                name="city"
+                value={formData.city}
+                onChange={handleChange}
+                error={errors.city}
+                placeholder="New York"
+                required
+                maxLength={80}
               />
-            </svg>
-            Financial Information
-          </h3>
+              <SelectInput
+                label="State"
+                name="state"
+                value={formData.state}
+                onChange={handleChange}
+                error={errors.state}
+                options={US_STATES}
+                required
+              />
+              <TextInput
+                label="ZIP Code"
+                name="zip"
+                type="tel"
+                value={formData.zip}
+                onChange={handleChange}
+                error={errors.zip}
+                placeholder="12345"
+                required
+                maxLength={5}
+              />
+            </div>
 
-          {/* Loan Amount */}
-          <div className="mb-6">
-            <div className="relative">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <SelectInput
+                label="Years at Current Address"
+                name="lengthAtAddress"
+                value={formData.lengthAtAddress}
+                onChange={handleChange}
+                error={errors.lengthAtAddress}
+                options={[
+                  { value: "", label: "Select years" },
+                  { value: "0", label: "Less than 1 year" },
+                  { value: "1", label: "1 year" },
+                  { value: "2", label: "2 years" },
+                  { value: "3", label: "3 years" },
+                  { value: "4", label: "4 years" },
+                  { value: "5", label: "5 years" },
+                  { value: "6", label: "6 years" },
+                  { value: "7", label: "7 years" },
+                  { value: "8", label: "8 years" },
+                  { value: "9", label: "9 years" },
+                  { value: "10", label: "10+ years" },
+                ]}
+                required
+              />
+              <RadioGroup
+                label="Do you Rent or Own?"
+                name="rentOwn"
+                value={formData.rentOwn}
+                onChange={handleChange}
+                error={errors.rentOwn}
+                options={[
+                  { value: "rent", label: "Rent" },
+                  { value: "own", label: "Own" },
+                ]}
+                required
+              />
+            </div>
+          </div>
+        )}
+
+        {/* STEP 3: FINANCIAL INFORMATION */}
+        {currentStep === 3 && (
+          <div className="space-y-6 animate-fadeIn">
+            <h3 className="text-xl font-semibold text-gray-800 mb-6">
+              Financial Information
+            </h3>
+
+            <div>
               <TextInput
                 label="Requested Loan Amount"
                 name="amount"
@@ -742,92 +719,76 @@ function LeadForm() {
                 placeholder="1,000"
                 required
               />
+              <p className="mt-2 text-xs text-gray-500">
+                Amount must be between $100 and $5,000
+              </p>
             </div>
-            <p className="mt-2 text-xs text-gray-500">
-              Amount must be between $100 and $5,000
-            </p>
-          </div>
 
-          {/* SSN */}
-          <div className="mb-6">
-            <TextInput
-              label="Social Security Number"
-              name="ssn"
-              type="tel"
-              value={formData.ssn}
-              onChange={handleChange}
-              error={errors.ssn}
-              placeholder="123-45-6789"
-              required
-              maxLength={11}
-            />
-            <p className="mt-2 text-xs text-gray-500 flex items-center">
-              <svg
-                className="w-4 h-4 mr-1"
-                fill="currentColor"
-                viewBox="0 0 20 20"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z"
-                  clipRule="evenodd"
-                />
-              </svg>
-              Your SSN is encrypted and secure
-            </p>
-          </div>
-
-          {/* Income Source & Monthly Income */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <SelectInput
-              label="Income Source"
-              name="incomeSource"
-              value={formData.incomeSource}
-              onChange={handleChange}
-              error={errors.incomeSource}
-              options={[
-                { value: "", label: "Select income source" },
-                { value: "employment", label: "Employment" },
-                { value: "selfemployment", label: "Self-Employment" },
-                { value: "benefits", label: "Benefits/Social Security" },
-                { value: "unemployed", label: "Unemployed" },
-              ]}
-              required
-            />
-            <TextInput
-              label="Monthly Net Income"
-              name="monthlyNetIncome"
-              type="tel"
-              value={formData.monthlyNetIncome}
-              onChange={handleChange}
-              error={errors.monthlyNetIncome}
-              placeholder="2,500"
-              required
-            />
-          </div>
-        </div>
-
-        {/* ===== SECTION 4: ADDITIONAL INFORMATION ===== */}
-        <div className="border-b border-gray-200 pb-8">
-          <h3 className="text-xl font-semibold text-gray-800 mb-6 flex items-center">
-            <svg
-              className="w-6 h-6 mr-2 text-blue-600"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+            <div>
+              <TextInput
+                label="Social Security Number"
+                name="ssn"
+                type="tel"
+                value={formData.ssn}
+                onChange={handleChange}
+                error={errors.ssn}
+                placeholder="123-45-6789"
+                required
+                maxLength={11}
               />
-            </svg>
-            Additional Information
-          </h3>
+              <p className="mt-2 text-xs text-gray-500 flex items-center">
+                <svg
+                  className="w-4 h-4 mr-1"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+                Your SSN is encrypted and secure
+              </p>
+            </div>
 
-          {/* Best Time to Call */}
-          <div className="mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <SelectInput
+                label="Income Source"
+                name="incomeSource"
+                value={formData.incomeSource}
+                onChange={handleChange}
+                error={errors.incomeSource}
+                options={[
+                  { value: "", label: "Select income source" },
+                  { value: "employment", label: "Employment" },
+                  { value: "selfemployment", label: "Self-Employment" },
+                  { value: "benefits", label: "Benefits/Social Security" },
+                  { value: "unemployed", label: "Unemployed" },
+                ]}
+                required
+              />
+              <TextInput
+                label="Monthly Net Income"
+                name="monthlyNetIncome"
+                type="tel"
+                value={formData.monthlyNetIncome}
+                onChange={handleChange}
+                error={errors.monthlyNetIncome}
+                placeholder="2,500"
+                required
+              />
+            </div>
+          </div>
+        )}
+
+        {/* STEP 4: ADDITIONAL INFORMATION */}
+        {currentStep === 4 && (
+          <div className="space-y-6 animate-fadeIn">
+            <h3 className="text-xl font-semibold text-gray-800 mb-6">
+              Additional Information
+            </h3>
+
             <RadioGroup
               label="Best Time to Call"
               name="callTime"
@@ -842,16 +803,12 @@ function LeadForm() {
               ]}
               required
             />
-          </div>
 
-          {/* Loan Reason (Optional) */}
-          <div className="mb-6">
             <SelectInput
               label="Reason for Loan (Optional)"
               name="loan_reason"
               value={formData.loan_reason}
               onChange={handleChange}
-              error={errors.loan_reason}
               options={[
                 { value: "", label: "Select reason" },
                 { value: "debt_consolidation", label: "Debt Consolidation" },
@@ -864,16 +821,12 @@ function LeadForm() {
                 { value: "other", label: "Other" },
               ]}
             />
-          </div>
 
-          {/* Credit Type (Optional) */}
-          <div className="mb-6">
             <SelectInput
               label="Credit Rating (Optional)"
               name="credit_type"
               value={formData.credit_type}
               onChange={handleChange}
-              error={errors.credit_type}
               options={[
                 { value: "", label: "Select credit rating" },
                 { value: "excellent", label: "Excellent (720+)" },
@@ -884,42 +837,39 @@ function LeadForm() {
               ]}
             />
           </div>
-        </div>
+        )}
 
-        {/* Submit Button */}
-        <div className="flex justify-center pt-6">
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full max-w-md bg-blue-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all"
-          >
-            {loading ? (
-              <span className="flex items-center justify-center">
-                <svg
-                  className="animate-spin h-5 w-5 mr-3 text-white"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                    fill="none"
-                  ></circle>
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  ></path>
-                </svg>
-                Processing...
-              </span>
-            ) : (
-              "Submit Application"
-            )}
-          </button>
+        {/* Navigation Buttons */}
+        <div className="flex justify-between mt-8 pt-6 border-t border-gray-200">
+          {currentStep > 1 ? (
+            <button
+              type="button"
+              onClick={handleBack}
+              className="px-6 py-3 bg-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-300 transition-colors"
+            >
+              ← Back
+            </button>
+          ) : (
+            <div></div>
+          )}
+
+          {currentStep < 4 ? (
+            <button
+              type="button"
+              onClick={handleNext}
+              className="px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Next →
+            </button>
+          ) : (
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+            >
+              {loading ? "Submitting..." : "Submit Application"}
+            </button>
+          )}
         </div>
       </form>
 
