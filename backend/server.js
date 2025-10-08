@@ -62,7 +62,7 @@ app.use((req, res, next) => {
 // =============================================
 
 // Health check endpoint
-app.get("/api/health", (req, res) => {
+app.get("/", (req, res) => {
   res.json({
     status: "ok",
     message: "Lead System API is running",
