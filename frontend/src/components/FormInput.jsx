@@ -30,10 +30,10 @@ export function TextInput({
 
   return (
     <div className="w-full">
-      <div className="flex items-center justify-between mb-1">
+      <div className="flex items-center justify-between mb-2">
         <label
           htmlFor={inputId}
-          className="flex items-center text-sm font-medium text-gray-700"
+          className="flex items-center text-sm font-semibold text-gray-700"
         >
           {label}
           {required && (
@@ -66,7 +66,7 @@ export function TextInput({
       <div className="relative">
         {icon && (
           <div
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+            className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
             aria-hidden="true"
           >
             {icon}
@@ -90,25 +90,28 @@ export function TextInput({
           }
           aria-required={required}
           className={`w-full ${
-            icon ? "pl-10" : "pl-4"
-          } pr-10 py-2 border rounded-lg transition-all duration-200 ${
+            icon ? "pl-12" : "pl-4"
+          } pr-12 py-3.5 text-base border-2 rounded-xl transition-all duration-200 font-medium
+          ${
             error
-              ? "border-red-500 bg-red-50 focus:ring-red-500 focus:border-red-500"
+              ? "border-red-400 bg-red-50 focus:ring-4 focus:ring-red-100 focus:border-red-500"
               : success
-              ? "border-green-500 bg-green-50 focus:ring-green-500 focus:border-green-500"
-              : "border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          } ${disabled ? "bg-gray-100 cursor-not-allowed" : ""}`}
+              ? "border-green-400 bg-green-50 focus:ring-4 focus:ring-green-100 focus:border-green-500"
+              : "border-gray-300 bg-white focus:ring-4 focus:ring-blue-100 focus:border-blue-500"
+          } 
+          ${disabled ? "bg-gray-100 cursor-not-allowed opacity-60" : ""}
+          placeholder:text-gray-400 placeholder:font-normal`}
         />
 
         {/* Success/Error Icons */}
         {(success || error) && (
           <div
-            className="absolute right-3 top-1/2 -translate-y-1/2"
+            className="absolute right-4 top-1/2 -translate-y-1/2"
             aria-hidden="true"
           >
             {success && (
               <svg
-                className="w-5 h-5 text-green-500"
+                className="w-6 h-6 text-green-500"
                 fill="currentColor"
                 viewBox="0 0 20 20"
               >
@@ -121,7 +124,7 @@ export function TextInput({
             )}
             {error && (
               <svg
-                className="w-5 h-5 text-red-500"
+                className="w-6 h-6 text-red-500"
                 fill="currentColor"
                 viewBox="0 0 20 20"
               >
@@ -141,11 +144,11 @@ export function TextInput({
       {error && (
         <p
           id={errorId}
-          className="mt-1 text-sm text-red-600 flex items-center animate-shake"
+          className="mt-2 text-sm text-red-600 flex items-center animate-shake font-medium"
           role="alert"
         >
           <svg
-            className="w-4 h-4 mr-1 flex-shrink-0"
+            className="w-4 h-4 mr-1.5 flex-shrink-0"
             fill="currentColor"
             viewBox="0 0 20 20"
             aria-hidden="true"
@@ -183,7 +186,7 @@ export function SelectInput({
     <div className="w-full">
       <label
         htmlFor={name}
-        className="flex items-center text-sm font-medium text-gray-700 mb-1"
+        className="flex items-center text-sm font-semibold text-gray-700 mb-2"
       >
         {label} {required && <span className="text-red-500 ml-1">*</span>}
         {tooltip && (
@@ -200,13 +203,20 @@ export function SelectInput({
           value={value}
           onChange={onChange}
           disabled={disabled}
-          className={`w-full px-4 py-2 pr-10 border rounded-lg transition-all duration-200 appearance-none ${
+          className={`w-full px-4 py-3.5 pr-12 text-base border-2 rounded-xl transition-all duration-200 appearance-none font-medium
+          ${
             error
-              ? "border-red-500 bg-red-50 focus:ring-red-500 focus:border-red-500"
+              ? "border-red-400 bg-red-50 focus:ring-4 focus:ring-red-100 focus:border-red-500"
               : success
-              ? "border-green-500 bg-green-50 focus:ring-green-500 focus:border-green-500"
-              : "border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          } ${disabled ? "bg-gray-100 cursor-not-allowed" : ""}`}
+              ? "border-green-400 bg-green-50 focus:ring-4 focus:ring-green-100 focus:border-green-500"
+              : "border-gray-300 bg-white focus:ring-4 focus:ring-blue-100 focus:border-blue-500"
+          } 
+          ${
+            disabled
+              ? "bg-gray-100 cursor-not-allowed opacity-60"
+              : "cursor-pointer"
+          }
+          ${!value ? "text-gray-400" : "text-gray-900"}`}
         >
           {options.map((option) => (
             <option key={option.value} value={option.value}>
@@ -216,9 +226,15 @@ export function SelectInput({
         </select>
 
         {/* Dropdown Arrow */}
-        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+        <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
           <svg
-            className="w-5 h-5 text-gray-400"
+            className={`w-5 h-5 transition-colors ${
+              error
+                ? "text-red-400"
+                : success && value
+                ? "text-green-500"
+                : "text-gray-400"
+            }`}
             fill="currentColor"
             viewBox="0 0 20 20"
           >
@@ -232,7 +248,7 @@ export function SelectInput({
 
         {/* Success Icon */}
         {success && value && (
-          <div className="absolute right-10 top-1/2 -translate-y-1/2">
+          <div className="absolute right-12 top-1/2 -translate-y-1/2">
             <svg
               className="w-5 h-5 text-green-500"
               fill="currentColor"
@@ -251,9 +267,9 @@ export function SelectInput({
       {helpText && !error && <HelpText>{helpText}</HelpText>}
 
       {error && (
-        <p className="mt-1 text-sm text-red-600 flex items-center animate-shake">
+        <p className="mt-2 text-sm text-red-600 flex items-center animate-shake font-medium">
           <svg
-            className="w-4 h-4 mr-1 flex-shrink-0"
+            className="w-4 h-4 mr-1.5 flex-shrink-0"
             fill="currentColor"
             viewBox="0 0 20 20"
           >
@@ -286,7 +302,7 @@ export function RadioGroup({
 }) {
   return (
     <div className="w-full">
-      <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
+      <label className="flex items-center text-sm font-semibold text-gray-700 mb-3">
         {label} {required && <span className="text-red-500 ml-1">*</span>}
         {tooltip && (
           <span className="ml-2">
@@ -295,14 +311,15 @@ export function RadioGroup({
         )}
       </label>
 
-      <div className="flex flex-wrap gap-3">
+      <div className="grid grid-cols-2 gap-3">
         {options.map((option) => (
           <label
             key={option.value}
-            className={`flex items-center px-4 py-2.5 border-2 rounded-lg cursor-pointer transition-all duration-200 ${
+            className={`relative flex items-center justify-center px-5 py-4 border-2 rounded-xl cursor-pointer transition-all duration-200 
+            ${
               value === option.value
-                ? "border-blue-500 bg-blue-50 text-blue-700 shadow-sm"
-                : "border-gray-300 hover:border-gray-400 hover:bg-gray-50"
+                ? "border-blue-500 bg-gradient-to-br from-blue-50 to-blue-100 shadow-md ring-2 ring-blue-200"
+                : "border-gray-300 bg-white hover:border-gray-400 hover:bg-gray-50 hover:shadow-sm"
             }`}
           >
             <input
@@ -311,12 +328,18 @@ export function RadioGroup({
               value={option.value}
               checked={value === option.value}
               onChange={onChange}
-              className="mr-2 text-blue-600 focus:ring-blue-500"
+              className="sr-only"
             />
-            <span className="text-sm font-medium">{option.label}</span>
+            <span
+              className={`text-base font-semibold transition-colors ${
+                value === option.value ? "text-blue-700" : "text-gray-700"
+              }`}
+            >
+              {option.label}
+            </span>
             {value === option.value && (
               <svg
-                className="w-5 h-5 ml-2 text-blue-600"
+                className="absolute top-3 right-3 w-5 h-5 text-blue-600"
                 fill="currentColor"
                 viewBox="0 0 20 20"
               >
@@ -334,9 +357,9 @@ export function RadioGroup({
       {helpText && !error && <HelpText className="mt-2">{helpText}</HelpText>}
 
       {error && (
-        <p className="mt-2 text-sm text-red-600 flex items-center animate-shake">
+        <p className="mt-2 text-sm text-red-600 flex items-center animate-shake font-medium">
           <svg
-            className="w-4 h-4 mr-1 flex-shrink-0"
+            className="w-4 h-4 mr-1.5 flex-shrink-0"
             fill="currentColor"
             viewBox="0 0 20 20"
           >

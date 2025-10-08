@@ -55,7 +55,7 @@ export function InfoTooltip({ content, position = "top" }) {
     <Tooltip content={content} position={position}>
       <button
         type="button"
-        className="inline-flex items-center justify-center w-5 h-5 text-gray-400 hover:text-gray-600 transition-colors"
+        className="inline-flex items-center justify-center w-5 h-5 text-gray-400 hover:text-blue-600 transition-colors"
       >
         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
           <path
@@ -73,11 +73,14 @@ export function InfoTooltip({ content, position = "top" }) {
 // Help Text Component
 // =============================================
 
-export function HelpText({ children, className = "" }) {
+export function HelpText({ children, className = "", id }) {
   return (
-    <p className={`text-xs text-gray-500 mt-1 flex items-start ${className}`}>
+    <p
+      id={id}
+      className={`text-xs text-gray-500 mt-2 flex items-start ${className}`}
+    >
       <svg
-        className="w-4 h-4 mr-1 flex-shrink-0 mt-0.5"
+        className="w-4 h-4 mr-1 flex-shrink-0 mt-0.5 text-gray-400"
         fill="currentColor"
         viewBox="0 0 20 20"
       >
