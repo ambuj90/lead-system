@@ -32,11 +32,28 @@ const PORT = process.env.PORT || 5000;
 // =============================================
 // CORS Configuration - MUST BE FIRST
 // =============================================
-const allowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(",")
-  : ["http://localhost:5173", "http://localhost:3000"];
+const allowedOrigins = [
+  "https://lead-system-1.onrender.com",
+  "https://lead-system-8iga.onrender.com",
+  "https://lead-system-sb8k.onrender.com",
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "http://localhost:5000",
+];
 
-// Add production frontend URL if available
+// Add origins from environment variable
+if (process.env.ALLOWED_ORIGINS) {
+  const envOrigins = process.env.ALLOWED_ORIGINS.split(",").map((o) =>
+    o.trim()
+  );
+  envOrigins.forEach((origin) => {
+    if (!allowedOrigins.includes(origin)) {
+      allowedOrigins.push(origin);
+    }
+  });
+}
+
+// Add frontend URL if specified
 if (
   process.env.FRONTEND_URL &&
   !allowedOrigins.includes(process.env.FRONTEND_URL)
@@ -44,32 +61,48 @@ if (
   allowedOrigins.push(process.env.FRONTEND_URL);
 }
 
-// Add common Render.com patterns
-allowedOrigins.push("https://lead-system-sb8k.onrender.com");
+logInfo("CORS Allowed Origins", { origins: allowedOrigins });
 
+// CORS middleware
 app.use(
   cors({
     origin: function (origin, callback) {
       // Allow requests with no origin (like mobile apps, curl, Postman)
-      if (!origin) return callback(null, true);
+      if (!origin) {
+        logInfo("Request with no origin - allowing");
+        return callback(null, true);
+      }
+
+      // Remove trailing slash from origin
+      const cleanOrigin = origin.replace(/\/$/, "");
 
       // Check if origin is in allowed list
-      if (
-        allowedOrigins.some((allowed) =>
-          origin.startsWith(allowed.replace(/\/$/, ""))
-        )
-      ) {
+      if (allowedOrigins.includes(cleanOrigin)) {
+        logInfo("CORS - Origin allowed", { origin: cleanOrigin });
         callback(null, true);
       } else {
-        logWarning("CORS blocked origin", { origin, allowedOrigins });
-        callback(new Error("Not allowed by CORS"));
+        logWarning("CORS - Origin blocked", {
+          origin: cleanOrigin,
+          allowedOrigins,
+        });
+        // Allow in development, block in production
+        if (process.env.NODE_ENV === "development") {
+          callback(null, true);
+        } else {
+          callback(new Error(`Origin ${cleanOrigin} not allowed by CORS`));
+        }
       }
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-Requested-With",
+      "Accept",
+    ],
     exposedHeaders: ["Content-Range", "X-Content-Range"],
-    maxAge: 600, // Cache preflight for 10 minutes
+    maxAge: 86400, // Cache preflight for 24 hours
   })
 );
 
@@ -89,13 +122,12 @@ app.use(requestLogger);
 app.use(logRequestBody);
 app.use(performanceLogger);
 
-// Request logging middleware (custom console logs)
+// Custom request logging
 app.use((req, res, next) => {
-  const timestamp = new Date().toISOString();
   logInfo(`${req.method} ${req.path}`, {
     ip: req.ip,
     origin: req.get("origin"),
-    userAgent: req.get("user-agent"),
+    userAgent: req.get("user-agent")?.substring(0, 100), // Truncate long user agents
   });
   next();
 });
@@ -104,37 +136,69 @@ app.use((req, res, next) => {
 // Routes
 // =============================================
 
-// Health check endpoint
+// Root endpoint
 app.get("/", (req, res) => {
   res.json({
     status: "ok",
     message: "Lead System API is running",
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || "development",
+    version: "1.0.0",
   });
 });
 
+// Health check endpoint
 app.get("/api/health", (req, res) => {
   res.json({
     status: "ok",
     message: "API is healthy",
     timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    memory: process.memoryUsage(),
+  });
+});
+
+// CORS Test endpoint
+app.get("/api/test-cors", (req, res) => {
+  logInfo("CORS test endpoint hit", { origin: req.headers.origin });
+
+  res.json({
+    success: true,
+    message: "CORS is working correctly! ✓",
+    cors_info: {
+      origin: req.headers.origin || "No origin header",
+      allowed_origins: allowedOrigins,
+      origin_allowed: allowedOrigins.includes(
+        req.headers.origin?.replace(/\/$/, "")
+      ),
+    },
+    request_info: {
+      method: req.method,
+      path: req.path,
+      timestamp: new Date().toISOString(),
+      headers: {
+        origin: req.headers.origin,
+        host: req.headers.host,
+        "user-agent": req.headers["user-agent"]?.substring(0, 100),
+      },
+    },
+    server_info: {
+      node_version: process.version,
+      environment: process.env.NODE_ENV || "development",
+      platform: process.platform,
+    },
   });
 });
 
 // Test database connection endpoint
-app.get("/api/test-db", async (req, res) => {
-  try {
+app.get(
+  "/api/test-db",
+  asyncHandler(async (req, res) => {
     const { testConnection } = await import("./config/database.js");
     const result = await testConnection();
     res.json(result);
-  } catch (error) {
-    res.status(500).json({
-      status: "error",
-      message: error.message,
-    });
-  }
-});
+  })
+);
 
 // Lead submission endpoint
 app.post(
@@ -203,36 +267,46 @@ app.get(
   "/api/leads",
   asyncHandler(async (req, res) => {
     const { query } = await import("./config/database.js");
+    const limit = parseInt(req.query.limit) || 100;
+    const offset = parseInt(req.query.offset) || 0;
+
     const leads = await query(
-      "SELECT * FROM leads ORDER BY created_at DESC LIMIT 100"
+      "SELECT * FROM leads ORDER BY created_at DESC LIMIT ? OFFSET ?",
+      [limit, offset]
     );
-    res.json({ status: "success", data: leads });
+
+    res.json({
+      status: "success",
+      data: leads,
+      pagination: { limit, offset, count: leads.length },
+    });
   })
 );
 
 // Get post attempts for a specific lead
-app.get("/api/leads/:id/attempts", async (req, res) => {
-  try {
+app.get(
+  "/api/leads/:id/attempts",
+  asyncHandler(async (req, res) => {
     const { query } = await import("./config/database.js");
     const attempts = await query(
       "SELECT * FROM post_attempts WHERE lead_id = ? ORDER BY attempt_order ASC",
       [req.params.id]
     );
     res.json({ status: "success", data: attempts });
-  } catch (error) {
-    res.status(500).json({ status: "error", message: error.message });
-  }
-});
+  })
+);
 
 // Get lead details with attempts
-app.get("/api/leads/:id", async (req, res) => {
-  try {
+app.get(
+  "/api/leads/:id",
+  asyncHandler(async (req, res) => {
     const { query } = await import("./config/database.js");
 
     // Get lead
     const leads = await query("SELECT * FROM leads WHERE id = ?", [
       req.params.id,
     ]);
+
     if (leads.length === 0) {
       return res
         .status(404)
@@ -252,36 +326,34 @@ app.get("/api/leads/:id", async (req, res) => {
         attempts: attempts,
       },
     });
-  } catch (error) {
-    res.status(500).json({ status: "error", message: error.message });
-  }
-});
+  })
+);
 
 // Get recent leads with stats
-app.get("/api/leads/stats/summary", async (req, res) => {
-  try {
+app.get(
+  "/api/leads/stats/summary",
+  asyncHandler(async (req, res) => {
     const { query } = await import("./config/database.js");
 
     const stats = await query(`
-      SELECT 
-        COUNT(*) as total_leads,
-        SUM(CASE WHEN final_status = 'sold' THEN 1 ELSE 0 END) as sold_count,
-        SUM(CASE WHEN final_status = 'rejected' THEN 1 ELSE 0 END) as rejected_count,
-        SUM(CASE WHEN final_status = 'error' THEN 1 ELSE 0 END) as error_count,
-        AVG(CASE WHEN final_status = 'sold' THEN sold_price ELSE NULL END) as avg_sale_price,
-        MAX(sold_price) as max_sale_price
-      FROM leads
-    `);
+    SELECT 
+      COUNT(*) as total_leads,
+      SUM(CASE WHEN final_status = 'sold' THEN 1 ELSE 0 END) as sold_count,
+      SUM(CASE WHEN final_status = 'rejected' THEN 1 ELSE 0 END) as rejected_count,
+      SUM(CASE WHEN final_status = 'error' THEN 1 ELSE 0 END) as error_count,
+      AVG(CASE WHEN final_status = 'sold' THEN sold_price ELSE NULL END) as avg_sale_price,
+      MAX(sold_price) as max_sale_price
+    FROM leads
+  `);
 
     res.json({ status: "success", data: stats[0] });
-  } catch (error) {
-    res.status(500).json({ status: "error", message: error.message });
-  }
-});
+  })
+);
 
 // Test vendor configurations
-app.get("/api/test-vendors", async (req, res) => {
-  try {
+app.get(
+  "/api/test-vendors",
+  asyncHandler(async (req, res) => {
     const { validateITMediaConfig } = await import(
       "./services/itmediaService.js"
     );
@@ -320,11 +392,10 @@ app.get("/api/test-vendors", async (req, res) => {
       status: "success",
       message: "Vendor configuration test",
       data: results,
+      test_mode: process.env.USE_TEST_MODE === "true",
     });
-  } catch (error) {
-    res.status(500).json({ status: "error", message: error.message });
-  }
-});
+  })
+);
 
 // Generate test lead data (for development/testing)
 app.get("/api/generate-test-data", (req, res) => {
@@ -360,21 +431,25 @@ app.get("/api/generate-test-data", (req, res) => {
     message: "Test lead data generated",
     data: testLead,
     instructions: "Copy this data and POST to /api/lead to test the system",
+    curl_example: `curl -X POST ${req.protocol}://${req.get(
+      "host"
+    )}/api/lead -H "Content-Type: application/json" -d '${JSON.stringify(
+      testLead
+    )}'`,
   });
 });
 
 // Get vendor configurations
-app.get("/api/vendors", async (req, res) => {
-  try {
+app.get(
+  "/api/vendors",
+  asyncHandler(async (req, res) => {
     const { query } = await import("./config/database.js");
     const vendors = await query(
       "SELECT * FROM vendors WHERE is_active = 1 ORDER BY post_order ASC"
     );
     res.json({ status: "success", data: vendors });
-  } catch (error) {
-    res.status(500).json({ status: "error", message: error.message });
-  }
-});
+  })
+);
 
 // Get metrics summary
 app.get(
@@ -444,7 +519,7 @@ async function startServer() {
 
     // Start listening
     app.listen(PORT, () => {
-      console.log("=".repeat(50));
+      console.log("=".repeat(60));
       console.log(`🚀 Lead System API Server`);
       console.log(`📡 Running on: http://localhost:${PORT}`);
       console.log(`🌍 Environment: ${process.env.NODE_ENV || "development"}`);
@@ -454,26 +529,46 @@ async function startServer() {
         }`
       );
       console.log(`📝 Log Level: ${process.env.LOG_LEVEL || "info"}`);
-      console.log(`🔐 CORS Allowed Origins:`, allowedOrigins);
+      console.log(`🔐 CORS Allowed Origins (${allowedOrigins.length}):`);
+      allowedOrigins.forEach((origin) => console.log(`   - ${origin}`));
       console.log(`📅 Started at: ${new Date().toISOString()}`);
-      console.log("=".repeat(50));
+      console.log("=".repeat(60));
       console.log("\n💡 Available endpoints:");
-      console.log("   POST /api/lead - Submit a lead");
-      console.log("   GET  /api/leads - Get all leads");
-      console.log("   GET  /api/leads/:id - Get lead details");
-      console.log("   GET  /api/leads/:id/attempts - Get post attempts");
-      console.log("   GET  /api/leads/stats/summary - Get statistics");
-      console.log("   GET  /api/vendors - Get vendor configurations");
-      console.log("   GET  /api/test-vendors - Test vendor configs");
-      console.log("   GET  /api/metrics - Get performance metrics");
-      console.log("   POST /api/metrics/reset - Reset metrics");
-      console.log("   GET  /api/health - Health check");
-      console.log("   GET  /api/test-db - Database test\n");
+      console.log("   GET  /                          - Root status");
+      console.log("   GET  /api/health                - Health check");
+      console.log(
+        "   GET  /api/test-cors             - Test CORS configuration"
+      );
+      console.log(
+        "   GET  /api/test-db               - Test database connection"
+      );
+      console.log("   POST /api/lead                  - Submit a lead");
+      console.log("   GET  /api/leads                 - Get all leads");
+      console.log("   GET  /api/leads/:id             - Get lead details");
+      console.log("   GET  /api/leads/:id/attempts    - Get post attempts");
+      console.log("   GET  /api/leads/stats/summary   - Get statistics");
+      console.log(
+        "   GET  /api/vendors               - Get vendor configurations"
+      );
+      console.log("   GET  /api/test-vendors          - Test vendor configs");
+      console.log(
+        "   GET  /api/generate-test-data    - Generate test lead data"
+      );
+      console.log(
+        "   GET  /api/metrics               - Get performance metrics"
+      );
+      console.log("   POST /api/metrics/reset         - Reset metrics");
+      console.log("=".repeat(60));
+      console.log("\n🧪 Quick tests:");
+      console.log(`   curl http://localhost:${PORT}/api/health`);
+      console.log(`   curl http://localhost:${PORT}/api/test-cors`);
+      console.log(`   curl http://localhost:${PORT}/api/test-db\n`);
 
       logInfo("Server started successfully", {
         port: PORT,
         environment: process.env.NODE_ENV || "development",
         allowedOrigins,
+        nodeVersion: process.version,
       });
     });
   } catch (error) {

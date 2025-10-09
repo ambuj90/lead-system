@@ -3,191 +3,189 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-// =============================================
-// MySQL Connection Pool Configuration
-// =============================================
-const pool = mysql.createPool({
-  host: process.env.DB_HOST || "localhost",
-  port: process.env.DB_PORT || 3306,
-  user: process.env.DB_USER || "root",
+// Database configuration with timeout handling
+const dbConfig = {
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME || "lead_system",
+  database: process.env.DB_NAME,
+  port: process.env.DB_PORT || 3306,
+
+  // Connection pool settings
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
+
+  // Timeout settings
+  connectTimeout: 20000, // 20 seconds
+  acquireTimeout: 20000,
+  timeout: 20000,
+
+  // Keep-alive
   enableKeepAlive: true,
   keepAliveInitialDelay: 0,
-});
 
-// =============================================
-// Test Database Connection
-// =============================================
+  // SSL settings (required for many cloud databases)
+  ssl:
+    process.env.DB_SSL === "true"
+      ? {
+          rejectUnauthorized:
+            process.env.DB_SSL_REJECT_UNAUTHORIZED !== "false",
+        }
+      : undefined,
+};
+
+// Log configuration (without sensitive data)
+console.log("📊 Database Configuration:");
+console.log(`   Host: ${dbConfig.host}`);
+console.log(`   Port: ${dbConfig.port}`);
+console.log(`   Database: ${dbConfig.database}`);
+console.log(`   User: ${dbConfig.user}`);
+console.log(`   SSL: ${dbConfig.ssl ? "Enabled" : "Disabled"}`);
+console.log(`   Connect Timeout: ${dbConfig.connectTimeout}ms`);
+
+// Create connection pool
+let pool;
+
+try {
+  pool = mysql.createPool(dbConfig);
+  console.log("✅ Database pool created");
+} catch (error) {
+  console.error("❌ Failed to create database pool:", error.message);
+  throw error;
+}
+
+/**
+ * Test database connection
+ */
 export async function testConnection() {
+  let connection;
   try {
-    const connection = await pool.getConnection();
-    console.log("✅ MySQL Database connected successfully");
+    console.log("🔍 Testing database connection...");
 
-    // Test query
-    const [rows] = await connection.query("SELECT 1 + 1 AS result");
+    connection = await pool.getConnection();
+    console.log("✅ Database connection acquired");
+
+    await connection.ping();
+    console.log("✅ Database ping successful");
+
+    const [rows] = await connection.query("SELECT 1 as test");
+    console.log("✅ Database query successful");
 
     connection.release();
 
     return {
       status: "success",
       message: "Database connection successful",
-      test_query_result: rows[0].result,
-      database: process.env.DB_NAME,
+      database: dbConfig.database,
+      host: dbConfig.host,
     };
   } catch (error) {
-    console.error("❌ MySQL Database connection failed:", error.message);
+    console.error("❌ Database connection test failed:", error.message);
+
+    if (connection) {
+      connection.release();
+    }
+
+    // Provide helpful error messages
+    let helpMessage = "";
+
+    if (error.code === "ETIMEDOUT") {
+      helpMessage =
+        "Connection timeout. Check:\n" +
+        "  1. Database host is correct\n" +
+        "  2. Database is running and accessible\n" +
+        "  3. Firewall allows connections\n" +
+        "  4. IP whitelist includes your server IP";
+    } else if (error.code === "ECONNREFUSED") {
+      helpMessage =
+        "Connection refused. Check:\n" +
+        "  1. Database server is running\n" +
+        "  2. Port number is correct (usually 3306)\n" +
+        "  3. Host address is correct";
+    } else if (error.code === "ER_ACCESS_DENIED_ERROR") {
+      helpMessage =
+        "Access denied. Check:\n" +
+        "  1. Username is correct\n" +
+        "  2. Password is correct\n" +
+        "  3. User has proper permissions";
+    } else if (error.code === "ER_BAD_DB_ERROR") {
+      helpMessage =
+        "Database not found. Check:\n" +
+        "  1. Database name is correct\n" +
+        "  2. Database exists on the server";
+    }
+
+    console.error(helpMessage);
+
     return {
       status: "error",
-      message: "Database connection failed",
-      error: error.message,
+      message: error.message,
+      code: error.code,
+      help: helpMessage,
     };
   }
 }
 
-// =============================================
-// Query Helper Function
-// Execute parameterized queries safely
-// =============================================
+/**
+ * Execute a query
+ */
 export async function query(sql, params = []) {
   try {
     const [rows] = await pool.execute(sql, params);
     return rows;
   } catch (error) {
-    console.error("Database query error:", error.message);
+    console.error("Query error:", error.message);
     console.error("SQL:", sql);
-    console.error("Params:", params);
     throw error;
   }
 }
 
-// =============================================
-// Transaction Helper
-// For multiple queries that must succeed/fail together
-// =============================================
+/**
+ * Execute a transaction
+ */
 export async function transaction(callback) {
   const connection = await pool.getConnection();
 
   try {
     await connection.beginTransaction();
-
-    // Execute the callback with connection
     const result = await callback(connection);
-
     await connection.commit();
     return result;
   } catch (error) {
     await connection.rollback();
-    console.error("Transaction failed:", error.message);
     throw error;
   } finally {
     connection.release();
   }
 }
 
-// =============================================
-// Insert Helper
-// Returns inserted ID
-// =============================================
-export async function insert(table, data) {
-  const columns = Object.keys(data).join(", ");
-  const placeholders = Object.keys(data)
-    .map(() => "?")
-    .join(", ");
-  const values = Object.values(data);
-
-  const sql = `INSERT INTO ${table} (${columns}) VALUES (${placeholders})`;
-
-  try {
-    const [result] = await pool.execute(sql, values);
-    return result.insertId;
-  } catch (error) {
-    console.error("Insert error:", error.message);
-    console.error("Table:", table);
-    console.error("Data:", data);
-    throw error;
-  }
+/**
+ * Get a connection from the pool
+ */
+export async function getConnection() {
+  return await pool.getConnection();
 }
 
-// =============================================
-// Update Helper
-// =============================================
-export async function update(table, data, where, whereParams = []) {
-  const setClause = Object.keys(data)
-    .map((key) => `${key} = ?`)
-    .join(", ");
-
-  const values = [...Object.values(data), ...whereParams];
-  const sql = `UPDATE ${table} SET ${setClause} WHERE ${where}`;
-
-  try {
-    const [result] = await pool.execute(sql, values);
-    return result.affectedRows;
-  } catch (error) {
-    console.error("Update error:", error.message);
-    console.error("Table:", table);
-    throw error;
-  }
-}
-
-// =============================================
-// Find One Helper
-// Returns single row or null
-// =============================================
-export async function findOne(table, where, whereParams = []) {
-  const sql = `SELECT * FROM ${table} WHERE ${where} LIMIT 1`;
-
-  try {
-    const [rows] = await pool.execute(sql, whereParams);
-    return rows.length > 0 ? rows[0] : null;
-  } catch (error) {
-    console.error("FindOne error:", error.message);
-    throw error;
-  }
-}
-
-// =============================================
-// Find Many Helper
-// Returns array of rows
-// =============================================
-export async function findMany(
-  table,
-  where = "1=1",
-  whereParams = [],
-  orderBy = "id DESC",
-  limit = null
-) {
-  let sql = `SELECT * FROM ${table} WHERE ${where} ORDER BY ${orderBy}`;
-
-  if (limit) {
-    sql += ` LIMIT ${parseInt(limit)}`;
-  }
-
-  try {
-    const [rows] = await pool.execute(sql, whereParams);
-    return rows;
-  } catch (error) {
-    console.error("FindMany error:", error.message);
-    throw error;
-  }
-}
-
-// =============================================
-// Close Pool (for graceful shutdown)
-// =============================================
+/**
+ * Close all connections
+ */
 export async function closePool() {
-  try {
+  if (pool) {
     await pool.end();
-    console.log("✅ Database connection pool closed");
-  } catch (error) {
-    console.error("❌ Error closing database pool:", error.message);
+    console.log("Database pool closed");
   }
 }
 
-// =============================================
-// Export pool for direct access if needed
-// =============================================
+// Handle process termination
+process.on("SIGINT", async () => {
+  await closePool();
+  process.exit(0);
+});
+
+process.on("SIGTERM", async () => {
+  await closePool();
+  process.exit(0);
+});
+
 export default pool;
